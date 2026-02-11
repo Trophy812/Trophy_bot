@@ -1,25 +1,52 @@
 import asyncio
 import os
-from aiogram import Bot, Dispatcher, types, F, filters  # Добавил filters сюда
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command, StateFilter
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Токен из переменной окружения
 API_TOKEN = os.getenv("API_TOKEN")
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# Состояния для отслеживания блоков
 class BotStates(StatesGroup):
     main_menu = State()
     block2 = State()
     block3 = State()
     block4 = State()
 
-# ====== ГЛАВНОЕ МЕНЮ (Блок 1) - 2 столбика ======
+# ====== ГЛАВНОЕ МЕНЮ (ОСТАЕТСЯ ReplyKeyboard) ======
+def get_main_menu():
+    return ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="🗺️ Где купить?"), KeyboardButton(text="💳 Как платить?")],
+        [KeyboardButton(text="📦 Когда получить?"), KeyboardButton(text="📞 Зови Степаныча")]
+    ], resize_keyboard=True, one_time_keyboard=False)
+
+# ====== БЛОК 2: INLINE-КНОПКИ С ССЫЛКАМИ ======
+def get_block2_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚗 Купить с колес", callback_data="lead1")],
+        [InlineKeyboardButton(text="📞 Зови Степаныча", callback_data="lead2")],
+        [InlineKeyboardButton(text="📱 Авито", url="https://www.avito.ru/brands/4x4spb/all?gdlkerfdnwq=101&page_from=from_item_card&iid=7841359262&sellerId=3288992683cf68e0f0a42a16a71c4103")],
+        [InlineKeyboardButton(text="🌐 Сайт", url="https://4x4spb.ru/")],
+        [InlineKeyboardButton(text="📍 Где магазин", url="https://yandex.ru/maps/-/CPQcV6JZ")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
+    ])
+
+def get_block3_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
+    ])
+
+def get_block4_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
+    ])
+
+# ====== ОБРАБОТЧИКИ ======
 @dp.message(Command("start"))
 async def start_handler(message: types.Message, state: FSMContext):
     text = """Привет! Я помощник Степаныча, знаю все про магазин 4x4spb.ru/
@@ -67,37 +94,26 @@ async def block4_handler(message: types.Message, state: FSMContext):
 async def main_lead(message: types.Message):
     await message.answer("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных — добавим позже)")
 
-# ====== БЛОК 2 ======
-@dp.message(StateFilter(BotStates.block2), F.text == "🚗 Купить с колес")
-async def block2_lead1(message: types.Message):
-    await message.answer("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных)")
+# ====== CALLBACK ОБРАБОТЧИКИ (ДЛЯ INLINE-КНОПОК) ======
+@dp.callback_query(F.data == "lead1")
+async def callback_lead1(callback: types.CallbackQuery):
+    await callback.message.edit_text("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных)")
+    await callback.answer()
 
-@dp.message(StateFilter(BotStates.block2), F.text == "📞 Зови Степаныча")
-async def block2_lead2(message: types.Message):
-    await message.answer("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных)")
+@dp.callback_query(F.data == "lead2")
+async def callback_lead2(callback: types.CallbackQuery):
+    await callback.message.edit_text("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных)")
+    await callback.answer()
 
-@dp.message(StateFilter(BotStates.block2), F.text == "📱 Авито")
-async def block2_avito(message: types.Message):
-    await message.answer("🔗 https://www.avito.ru/user/3288992683cf68e0f0a42a16a71c4103/profile/all?id=7905720699&src=item&sellerId=3288992683cf68e0f0a42a16a71c4103", reply_markup=get_block2_menu())
-
-@dp.message(StateFilter(BotStates.block2), F.text == "🌐 Сайт")
-async def block2_site(message: types.Message):
-    await message.answer("🔗 https://4x4spb.ru/", reply_markup=get_block2_menu())
-
-@dp.message(StateFilter(BotStates.block2), F.text == "📍 Где магазин")
-async def block2_map(message: types.Message):
-    await message.answer("📍 https://yandex.ru/maps/-/CPQcV6JZ", reply_markup=get_block2_menu())
-
-# ====== НАЗАД ======
-@dp.message(F.text == "🔙 Назад")
-async def back_to_main(message: types.Message, state: FSMContext):
+@dp.callback_query(F.data == "back_main")
+async def callback_back_main(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(BotStates.main_menu)
-    await message.answer("Что тебе рассказать?", reply_markup=get_main_menu())
+    await callback.message.edit_text("Что тебе рассказать?", reply_markup=get_main_menu())
+    await callback.answer()
 
-# ====== ПОЛНАЯ БЛОКИРОВКА ВСЕГО ОСТАЛЬНОГО ======
+# ====== БЛОКИРОВКА ======
 @dp.message()
 async def block_all_text(message: types.Message):
-    # НИЧЕГО НЕ ОТВЕЧАЕТ на любой свободный текст
     pass
 
 async def main():
