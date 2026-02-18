@@ -2,11 +2,7 @@ import asyncio
 import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, StateFilter
-from aiogram.types import (
-    ReplyKeyboardMarkup, KeyboardButton,
-    InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardRemove
-)
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -24,15 +20,19 @@ class BotStates(StatesGroup):
     block4 = State()
 
 
-# ====== ГЛАВНОЕ МЕНЮ (ReplyKeyboard, 2 колонки) ======
+# ====== ГЛАВНОЕ МЕНЮ (inline, 2 столбика) ======
 def get_main_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🗺️ Где купить?"), KeyboardButton(text="💳 Как платить?")],
-            [KeyboardButton(text="📦 Когда получить?"), KeyboardButton(text="📞 Зови Степаныча")]
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=False
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🗺️ Где купить?", callback_data="main_where"),
+                InlineKeyboardButton(text="💳 Как платить?", callback_data="main_pay")
+            ],
+            [
+                InlineKeyboardButton(text="📦 Когда получить?", callback_data="main_when"),
+                InlineKeyboardButton(text="📞 Зови Степаныча", callback_data="main_call")
+            ]
+        ]
     )
 
 
@@ -40,17 +40,14 @@ def get_main_menu():
 def get_block2_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            # Первая строка — две кнопки
             [
                 InlineKeyboardButton(text="🚗 Купить с колес", callback_data="lead1"),
                 InlineKeyboardButton(text="📞 Зови Степаныча", callback_data="lead2")
             ],
-            # Вторая строка — две кнопки
             [
                 InlineKeyboardButton(text="📱 Авито", url="https://www.avito.ru/brands/4x4spb/all?gdlkerfdnwq=101&page_from=from_item_card&iid=7841359262&sellerId=3288992683cf68e0f0a42a16a71c4103"),
                 InlineKeyboardButton(text="🌐 Сайт", url="https://4x4spb.ru/")
             ],
-            # Третья строка — две кнопки
             [
                 InlineKeyboardButton(text="📍 Где магазин", url="https://yandex.ru/maps/-/CPQcV6JZ"),
                 InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")
@@ -60,7 +57,6 @@ def get_block2_menu():
 
 
 def get_block3_menu():
-    # Только одна кнопка — оставляем как есть
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
@@ -86,56 +82,62 @@ async def start_handler(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.main_menu)
 
 
-# ====== ПЕРЕХОДЫ ИЗ ГЛАВНОГО МЕНЮ (убираем Reply‑клавиатуру) ======
-@dp.message(StateFilter(BotStates.main_menu), F.text == "🗺️ Где купить?")
-async def block2_handler(message: types.Message, state: FSMContext):
+# ====== ОБРАБОТЧИКИ INLINE‑КНОПОК ГЛАВНОГО МЕНЮ ======
+@dp.callback_query(F.data == "main_where")
+async def main_where_callback(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(BotStates.block2)
-    # Убираем основную клавиатуру
-    await message.answer("⚙️ Загружаю информацию...", reply_markup=ReplyKeyboardRemove())
-    text = """Где мы продаем? Хм, везде.
+    await callback.message.edit_text(
+        text="""Где мы продаем? Хм, везде.
 
 💡 Если ты живешь в Санкт-Петербурге, то легче всего купить через менеджера по звонку.
 💡 Или приехать в магазин.
 💡 Если в другом городе, то через Авито
-💡 Третий вариант - через сайт, но имейте ввиду, что на сайт попадает не весь ассортимент, некоторые позиции уходят прямо с колес"""
-    await message.answer(text, reply_markup=get_block2_menu())
+💡 Третий вариант - через сайт, но имейте ввиду, что на сайт попадает не весь ассортимент, некоторые позиции уходят прямо с колес""",
+        reply_markup=get_block2_menu()
+    )
+    await callback.answer()
 
 
-@dp.message(StateFilter(BotStates.main_menu), F.text == "💳 Как платить?")
-async def block3_handler(message: types.Message, state: FSMContext):
+@dp.callback_query(F.data == "main_pay")
+async def main_pay_callback(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(BotStates.block3)
-    await message.answer("⚙️ Загружаю информацию...", reply_markup=ReplyKeyboardRemove())
-    text = """Магазин работает со всеми вариантами оплаты:
+    await callback.message.edit_text(
+        text="""Магазин работает со всеми вариантами оплаты:
 
 💰 Наличные в магазине
 💳 Платеж по карте в магазине
 📱 QR код (СБП)
 💻 Безопасная сделка на Авито
-🧾 Безналичный расчет для юридических лиц по счету, с НДС"""
-    await message.answer(text, reply_markup=get_block3_menu())
+🧾 Безналичный расчет для юридических лиц по счету, с НДС""",
+        reply_markup=get_block3_menu()
+    )
+    await callback.answer()
 
 
-@dp.message(StateFilter(BotStates.main_menu), F.text == "📦 Когда получить?")
-async def block4_handler(message: types.Message, state: FSMContext):
+@dp.callback_query(F.data == "main_when")
+async def main_when_callback(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(BotStates.block4)
-    await message.answer("⚙️ Загружаю информацию...", reply_markup=ReplyKeyboardRemove())
-    text = """📆 Отправим в день оплаты.
+    await callback.message.edit_text(
+        text="""📆 Отправим в день оплаты.
 
-📅 Для самовывоза магазин в Санкт-Петербурге на Мгинской 7 работает с понедельника по пятницу, 11.00 - 19.00
+📅 САМОВЫВОЗ: из магазина в Санкт-Петербурге на Мгинской 7 с понедельника по пятницу, 11.00 - 19.00
 
-🚙 В пределах Санкт-Петербурга - везем сами по согласованию.
+🚙 ДОСТАВКА в Санкт-Петербурге: везем сами по согласованию с покупателем.
 
-🚚 За пределы Санкт-Петербурга доставим любой транспортной компанией: Деловые линии, Энергия, КИТ, ПЭК, СДЭК, Авито доставка."""
-    await message.answer(text, reply_markup=get_block4_menu())
-
-
-@dp.message(StateFilter(BotStates.main_menu), F.text == "📞 Зови Степаныча")
-async def main_lead(message: types.Message):
-    # Пока заглушка, потом заменим на полноценный блок сбора данных
-    await message.answer("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных — добавим позже)")
+🚚 ДОСТАВКА за пределы Санкт-Петербурга. Любой транспортной компанией: Деловые линии, Энергия, КИТ, ПЭК, СДЭК, Авито доставка.""",
+        reply_markup=get_block4_menu()
+    )
+    await callback.answer()
 
 
-# ====== ОБРАБОТЧИКИ INLINE‑КНОПОК ======
+@dp.callback_query(F.data == "main_call")
+async def main_call_callback(callback: types.CallbackQuery, state: FSMContext):
+    # Пока заглушка, потом заменим на блок сбора данных
+    await callback.message.edit_text("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных — добавим позже)")
+    await callback.answer()
+
+
+# ====== ОБРАБОТЧИКИ INLINE‑КНОПОК БЛОКОВ 2–4 ======
 @dp.callback_query(F.data == "lead1")
 async def callback_lead1(callback: types.CallbackQuery):
     await callback.message.edit_text("📞 Соединяю с кожаным Степанычем!\n(Блок сбора данных)")
@@ -150,11 +152,9 @@ async def callback_lead2(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "back_main")
 async def callback_back_main(callback: types.CallbackQuery, state: FSMContext):
-    # Удаляем сообщение с инлайн‑кнопками, чтобы не загромождать чат
-    await callback.message.delete()
-    # Отправляем новое сообщение с главным меню и Reply‑клавиатурой
-    await callback.message.answer(
-        "Что тебе рассказать?",
+    # Возвращаем главное меню (тоже inline)
+    await callback.message.edit_text(
+        text="Что тебе рассказать?",
         reply_markup=get_main_menu()
     )
     await state.set_state(BotStates.main_menu)
@@ -164,7 +164,7 @@ async def callback_back_main(callback: types.CallbackQuery, state: FSMContext):
 # ====== БЛОКИРОВКА ЛЮБЫХ ТЕКСТОВЫХ СООБЩЕНИЙ ======
 @dp.message()
 async def block_all_text(message: types.Message):
-    # Игнорируем любые сообщения, которые не обработаны выше
+    # Игнорируем всё, что не является командой /start
     pass
 
 
